@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# ChromaDB & Local Uploads
+chroma_db/
+uploads/
+*.sqlite3
+
+# Node.js
+node_modules/
+.next/
+out/
+build/

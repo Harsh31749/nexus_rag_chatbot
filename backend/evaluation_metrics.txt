@@ -1,0 +1,3 @@
+=== RAG MODEL EVALUATION METRICS ===
+Average Semantic Similarity Score: 0.8567
+Note: This metric serves as an analogue to accuracy/F1-score for generative models, representing how closely the generated answer matches the ground truth semantically.
