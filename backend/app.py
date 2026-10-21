@@ -34,6 +34,15 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv(
 # Global pointer for our local vector store persistence
 vector_store = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
 
+@app.route('/api/health', methods=['GET'])
+def health():
+    """Health check endpoint to verify backend status."""
+    return jsonify({
+        "status": "online",
+        "service": "Nexus RAG Chatbot API",
+        "version": "1.1.0"
+    }), 200
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     global vector_store
@@ -44,14 +53,20 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "No file selected"}), 400
 
-    if file and file.filename.endswith('.pdf'):
+    filename = file.filename.lower()
+    if file and (filename.endswith('.pdf') or filename.endswith('.txt')):
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(file_path)
 
         try:
-            # Load and parse PDF
-            loader = PyPDFLoader(file_path)
-            documents = loader.load()
+            # Load and parse document
+            if filename.endswith('.pdf'):
+                loader = PyPDFLoader(file_path)
+                documents = loader.load()
+            else:
+                from langchain_community.document_loaders import TextLoader
+                loader = TextLoader(file_path, encoding='utf-8')
+                documents = loader.load()
 
             # Split document into manageable chunks
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -65,9 +80,11 @@ def upload_file():
             return jsonify({"message": f"Successfully indexed {file.filename}. Ready for queries."}), 200
 
         except Exception as e:
-            return jsonify({"error": f"Failed to process PDF: {str(e)}"}), 500
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            return jsonify({"error": f"Failed to process document: {str(e)}"}), 500
             
-    return jsonify({"error": "Only PDF files are supported"}), 400
+    return jsonify({"error": "Only PDF and TXT files are supported"}), 400
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
