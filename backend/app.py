@@ -43,6 +43,20 @@ def health():
         "version": "1.1.0"
     }), 200
 
+@app.route('/api/stats', methods=['GET'])
+def stats():
+    """Return vector store statistics and total indexed chunks."""
+    try:
+        total_chunks = vector_store._collection.count() if vector_store and vector_store._collection else 0
+        return jsonify({
+            "status": "ready",
+            "total_chunks_indexed": total_chunks,
+            "vector_store": "ChromaDB",
+            "embedding_model": "gemini-embedding-2"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve vector store statistics: {str(e)}"}), 500
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     global vector_store
