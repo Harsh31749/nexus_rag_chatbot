@@ -52,3 +52,9 @@ npm install
 npm run dev
 ```
 Open `http://localhost:3000` in your browser.
+
+## 👥 Team Contributors
+- **Yash** — Project Lead & Core RAG Pipeline Architecture
+- **Shreyas** — Backend Health API & Multi-format Document Ingestion
+- **Harsh** — Responsive Frontend Web Client & Real-time Chat UI
+- **Mahavir** — API Unit Testing, Health Verification & Documentation
