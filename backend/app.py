@@ -59,7 +59,6 @@ def stats():
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    global vector_store
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
     
@@ -86,8 +85,8 @@ def upload_file():
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             chunks = text_splitter.split_documents(documents)
 
-            # Store embeddings in ChromaDB
-            vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="./chroma_db")
+            # Add embeddings to the existing collection so earlier uploads remain searchable.
+            vector_store.add_documents(chunks)
             
             # Clean up local file after processing
             os.remove(file_path)
