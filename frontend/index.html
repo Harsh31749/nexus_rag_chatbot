@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Nexus RAG Chatbot</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 30px auto; background: #f4f6f9; color: #333; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    h2 { margin-top: 0; color: #1e3a8a; }
+    input[type="file"], input[type="text"] { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
+    button { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    #chatHistory { height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 5px; background: #fafafa; }
+    .msg { margin-bottom: 8px; }
+    .user { color: #2563eb; font-weight: bold; }
+    .bot { color: #059669; font-weight: bold; }
+    .status { font-size: 0.9em; color: #666; }
+  </style>
+</head>
+<body>
+  <h2>🤖 Nexus RAG Document Assistant</h2>
+
+  <!-- Upload Section -->
+  <div class="card">
+    <h3>1. Ingest Document</h3>
+    <input type="file" id="docFile" accept=".pdf,.txt">
+    <button onclick="uploadDoc()">Upload & Index</button>
+    <p id="uploadStatus" class="status"></p>
+  </div>
+
+  <!-- Chat Section -->
+  <div class="card">
+    <h3>2. Query Document</h3>
+    <div id="chatHistory"></div>
+    <input type="text" id="userInput" placeholder="Ask a question about the uploaded document...">
+    <button onclick="sendQuery()">Send Query</button>
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:5000/api";
+
+    async function uploadDoc() {
+      const file = document.getElementById("docFile").files[0];
+      if (!file) return alert("Please select a file first.");
+      
+      const formData = new FormData();
+      formData.append("file", file);
+      document.getElementById("uploadStatus").innerText = "Indexing document...";
+
+      try {
+        const res = await fetch(`${API}/upload`, { method: "POST", body: formData });
+        const data = await res.json();
+        document.getElementById("uploadStatus").innerText = data.message || data.error;
+      } catch (err) {
+        document.getElementById("uploadStatus").innerText = "Error connecting to server.";
+      }
+    }
+
+    async function sendQuery() {
+      const input = document.getElementById("userInput");
+      const query = input.value.trim();
+      if (!query) return;
+
+      const history = document.getElementById("chatHistory");
+      history.innerHTML += `<div class="msg"><span class="user">You:</span> ${query}</div>`;
+      input.value = "";
+
+      try {
+        const res = await fetch(`${API}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: query, session_id: "demo_session" })
+        });
+        const data = await res.json();
+        const reply = data.response || data.error || "No response";
+        history.innerHTML += `<div class="msg"><span class="bot">AI:</span> ${reply}</div>`;
+      } catch (err) {
+        history.innerHTML += `<div class="msg"><span class="bot">AI:</span> Error reaching backend.</div>`;
+      }
+      history.scrollTop = history.scrollHeight;
+    }
+  </script>
+</body>
+</html>
