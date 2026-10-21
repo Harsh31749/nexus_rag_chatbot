@@ -11,7 +11,7 @@ You must start the backend server first. It handles document ingestion, vector s
 1. Open a new terminal (PowerShell or Command Prompt).
 2. Navigate to the `backend` directory:
    ```bash
-   cd d:\rag-chatbot\backend
+   cd backend
    ```
 3. Activate the virtual environment:
    ```bash
@@ -25,30 +25,26 @@ You must start the backend server first. It handles document ingestion, vector s
 
 ---
 
-## 2️⃣ Start the Frontend (Next.js UI)
+## 2️⃣ Open the Web UI (Frontend)
 
-Next, start the web interface where you can upload PDFs and chat.
+Next, launch the web interface to upload documents and query the chatbot.
 
-1. Open a **second** terminal.
-2. Navigate to the `frontend` directory:
+1. Open `frontend/index.html` directly in your web browser (double-click the file or open it in Chrome/Edge).
+2. Alternatively, use a lightweight HTTP server:
    ```bash
-   cd d:\rag-chatbot\frontend
+   npx serve frontend
    ```
-3. Start the Next.js development server:
-   ```bash
-   npm run dev
-   ```
-**Expected Output:** You should see `Ready in ...ms`. Open `http://localhost:3000` in your web browser.
 
 ---
 
 ## 3️⃣ Test the Web UI (Manual Testing)
 
-1. Open `http://localhost:3000` in your browser.
+1. Open the UI in your browser (`frontend/index.html`).
 2. **Upload a Document:** 
-   - Click the upload button and select `d:\rag-chatbot\knowledge_pdf\nexus_test_document.pdf`.
+   - Click the file picker and select a test document (e.g., `knowledge_pdf/nexus_test_document.pdf`).
+   - Click **Upload & Index**.
    - Wait for the "Successfully indexed" success message.
-3. **Ask a Question:** 
+3. **Ask Questions:** 
    - Type: *"Who is the Lead Architect?"*
    - The chatbot should reply: *"Dr. Aris Thorne"*.
    - Type: *"What is the override code for the Level 3 terminal?"*
@@ -65,7 +61,7 @@ We created a custom evaluation script to calculate the accuracy (Semantic Simila
 1. Open a **third** terminal.
 2. Navigate to the backend and activate the virtual environment:
    ```bash
-   cd d:\rag-chatbot\backend
+   cd backend
    .\venv\Scripts\activate
    ```
 3. Run the evaluation script:
