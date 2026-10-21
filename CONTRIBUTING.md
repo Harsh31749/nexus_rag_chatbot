@@ -56,7 +56,7 @@ Go to GitHub and submit a **Pull Request** targeting the `main` branch of `yash1
 ---
 
 ## 👥 Verified Core Contributors
-- **Yash** — Core RAG Architecture, Vector Store Metrics API (`/api/stats`), Setup Guide
-- **Shreyas** — Backend Health API (`/api/health`) & Multi-format Document Ingestion
-- **Harsh** — Responsive Frontend Web Client & Real-time Chat UI
-- **Mahavir** — Automated Testing Suite & Health Verification
+- **Yash** ([@yash1616-accept](https://github.com/yash1616-accept)) — Core RAG Architecture, Vector Store Metrics API (`/api/stats`), Setup Guide
+- **Shreyas** ([@Shreyas26X](https://github.com/Shreyas26X)) — Backend Health API (`/api/health`) & Multi-format Document Ingestion
+- **Harsh** ([@Harsh31749](https://github.com/Harsh31749)) — Responsive Frontend Web Client & Real-time Chat UI
+- **Mahavir** ([@mahavirgujarani04](https://github.com/mahavirgujarani04)) — Automated Testing Suite & Health Verification

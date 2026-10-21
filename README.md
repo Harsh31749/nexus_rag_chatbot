@@ -54,8 +54,8 @@ npm run dev
 Open `http://localhost:3000` in your browser.
 
 ## 👥 Team Contributors
-- **Yash** — Vector Store Metrics API (`/api/stats`), Project Integration & Setup Documentation
-- **Shreyas** — Backend Health API & Multi-format Document Ingestion
-- **Harsh** — Responsive Frontend Web Client & Real-time Chat UI
-- **Mahavir** — API Unit Testing, Health Verification & Documentation
+- **Yash** ([@yash1616-accept](https://github.com/yash1616-accept)) — Project Lead, Vector Store Metrics API (`/api/stats`), Setup Documentation
+- **Shreyas** ([@Shreyas26X](https://github.com/Shreyas26X)) — Backend Health API (`/api/health`) & Multi-format Document Ingestion
+- **Harsh** ([@Harsh31749](https://github.com/Harsh31749)) — Responsive Frontend Web Client & Real-time Chat UI
+- **Mahavir** ([@mahavirgujarani04](https://github.com/mahavirgujarani04)) — API Unit Testing, Health Verification & Documentation
 

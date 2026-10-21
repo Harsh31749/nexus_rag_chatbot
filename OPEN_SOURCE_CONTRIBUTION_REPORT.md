@@ -15,12 +15,12 @@ All four group members contributed distinct features across the full lifecycle: 
 
 ## 👥 Contributor Matrix & Evidence of Work
 
-| Member Name | Role & Responsibility | Feature / Module Contributed | Git Branch | Commit Hash | Files Impacted |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Yash** | Project Lead & System Analytics | Vector Store Collection Metrics API (`/api/stats`), portable setup migration, architecture design | `feature/yash-stats-docs` | `9ab766d` | `backend/app.py`, `start.md`, `README.md` |
-| **Shreyas** | Backend Core Engineer | System Health API (`/api/health`), Multi-format Document Ingestion (`.pdf`, `.txt`) | `feature/shreyas-backend-health` | `55246c0` | `backend/app.py` |
-| **Harsh** | Frontend UI Engineer | Responsive Web Client, Drag-and-Drop Ingestion, Real-time Query Interface | `feature/harsh-web-ui` | `44bbc54` | `frontend/index.html` |
-| **Mahavir** | QA & DevOps Engineer | Automated Pytest Unit Test Suite, Health Check Verification, Documentation | `feature/mahavir-testing-docs` | `bd096ec` | `backend/test_health.py`, `README.md` |
+| Member Name | GitHub Username | Role & Responsibility | Feature / Module Contributed | Git Branch | Commit Hash | Files Impacted |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Yash** | [@yash1616-accept](https://github.com/yash1616-accept) | Project Lead & System Analytics | Vector Store Collection Metrics API (`/api/stats`), portable setup migration, architecture design | `feature/yash-stats-docs` | `9ab766d` | `backend/app.py`, `start.md`, `README.md` |
+| **Shreyas** | [@Shreyas26X](https://github.com/Shreyas26X) | Backend Core Engineer | System Health API (`/api/health`), Multi-format Document Ingestion (`.pdf`, `.txt`) | `feature/shreyas-backend-health` | `55246c0` | `backend/app.py` |
+| **Harsh** | [@Harsh31749](https://github.com/Harsh31749) | Frontend UI Engineer | Responsive Web Client, Drag-and-Drop Ingestion, Real-time Query Interface | `feature/harsh-web-ui` | `44bbc54` | `frontend/index.html` |
+| **Mahavir** | [@mahavirgujarani04](https://github.com/mahavirgujarani04) | QA & DevOps Engineer | Automated Pytest Unit Test Suite, Health Check Verification, Documentation | `feature/mahavir-testing-docs` | `bd096ec` | `backend/test_health.py`, `README.md` |
 
 ---
 
