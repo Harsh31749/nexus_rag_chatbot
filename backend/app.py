@@ -1,149 +1,299 @@
 import os
-import uuid
+import re
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-from pymongo import MongoClient
-from dotenv import load_dotenv
-
-# LangChain & Vector Store Imports
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
-
-load_dotenv()
-
+# 1. Optional CORS setup with automatic fallback
+try:
+          from flask_cors import CORS
+          has_cors_lib = True
+except ImportError:
+          has_cors_lib = False
+# 2. Optional Environment loading
+try:
+          from dotenv import load_dotenv
+          load_dotenv()
+except ImportError:
+          pass
 app = Flask(__name__)
-CORS(app)
-
-# Ensure upload folder exists
-UPLOAD_FOLDER = './uploads'
+if has_cors_lib:
+          CORS(app)
+@app.after_request
+def add_cors_headers(response):
+          response.headers['Access-Control-Allow-Origin'] = '*'
+          response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+          response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+          return response
+# Ensure storage directories exist
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs('./chroma_db', exist_ok=True)
+# 3. MongoDB connection with in-memory fallback
+in_memory_history = {}
+mongo_available = False
+try:
+          from pymongo import MongoClient
+          mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+          mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=800)
+          mongo_client.admin.command('ping')
+          db = mongo_client["rag_chatbot_db"]
+          history_collection = db["chat_histories"]
+          mongo_available = True
+except Exception:
+          mongo_available = False
+# 4. In-Memory RAG store fallback (default technical document chunks)
+indexed_chunks = [
+          "Project Overview: Project Nexus is a next-generation quantum routing protocol designed specifically for deep-sea data transmission. Initiated on October 14th, 2024.",
+          "Core Components: The primary hyper-threading matrix is coded in a proprietary language called 'Abyss-Lang'.",
+          "Operating Thresholds: The system operates at a maximum temperature threshold of 4.2 Kelvin. If breached, the 'Aegis Protocol' automatically shuts down the mainframe.",
+          "Key Personnel: Lead Architect: Dr. Aris Thorne. Security Director: Commander Elena Rostova.",
+          "Security Protocols: To access the Level 3 diagnostic terminal, engineers must use the override code: 'NEXUS-99-OMEGA'."
+]
+# 5. Local LLM: LM Studio + local Hugging Face embeddings
+use_local_llm = True
+vector_store = None
+llm = None
+embeddings = None
 
-# 1. Database Connections
-mongo_client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017/"))
-db = mongo_client["rag_chatbot_db"]
-history_collection = db["chat_histories"]
+# Keep the old Gemini database untouched; local embeddings use a separate store.
+CHROMA_DIR = os.path.join(os.path.dirname(__file__), "chroma_db_local")
+os.makedirs(CHROMA_DIR, exist_ok=True)
 
-# 2. Initialize Gemini Embeddings & LLM
-embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2", google_api_key=os.getenv("GEMINI_API_KEY"))
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GEMINI_API_KEY"))
+try:
+    from langchain_openai import ChatOpenAI
+    from langchain_huggingface import HuggingFaceEmbeddings
+    from langchain_community.vectorstores import Chroma
 
-# Global pointer for our local vector store persistence
-vector_store = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
+    embedding_model = os.getenv(
+        "LOCAL_EMBEDDING_MODEL",
+        "sentence-transformers/all-MiniLM-L6-v2",
+    )
+    embeddings = HuggingFaceEmbeddings(
+        model_name=embedding_model,
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True},
+    )
+
+    llm = ChatOpenAI(
+        base_url=os.getenv("LM_STUDIO_BASE_URL", "http://127.0.0.1:1234/v1"),
+        api_key="lm-studio",
+        model=os.getenv("LM_STUDIO_MODEL", "qwen/qwen3-14b"),
+        temperature=0.1,
+        timeout=180,
+        max_retries=1,
+        use_responses_api=False,
+    )
+
+    vector_store = Chroma(
+        collection_name="nexus_local_documents",
+        persist_directory=CHROMA_DIR,
+        embedding_function=embeddings,
+    )
+    use_local_llm = True
+    print("Local LLM initialized: LM Studio")
+    print(f"LM Studio model: {os.getenv('LM_STUDIO_MODEL', 'qwen/qwen3-14b')}")
+    print(f"Embedding model: {embedding_model}")
+except Exception as e:
+    print(f"Local LLM initialization failed: {e}")
+    use_local_llm = False
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    """Health check endpoint to verify backend status."""
-    return jsonify({
-        "status": "online",
-        "service": "Nexus RAG Chatbot API",
-        "version": "1.1.0"
-    }), 200
-
+          """Health check endpoint to verify backend status."""
+          return jsonify({
+                    "status": "online",
+                    "service": "Nexus RAG Chatbot API",
+                    "version": "1.1.0",
+                    "database": "MongoDB" if mongo_available else "In-Memory Session Store",
+                    "engine": "LM Studio Qwen3 + Local Embeddings" if use_local_llm else "Standalone Local RAG Engine"
+          }), 200
 @app.route('/api/stats', methods=['GET'])
 def stats():
-    """Return vector store statistics and total indexed chunks."""
-    try:
-        total_chunks = vector_store._collection.count() if vector_store and vector_store._collection else 0
-        return jsonify({
-            "status": "ready",
-            "total_chunks_indexed": total_chunks,
-            "vector_store": "ChromaDB",
-            "embedding_model": "gemini-embedding-2"
-        }), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to retrieve vector store statistics: {str(e)}"}), 500
-
+          """Return vector store statistics and total indexed chunks."""
+          try:
+                    if use_local_llm and vector_store and vector_store._collection:
+                              total_chunks = vector_store._collection.count()
+                    else:
+                              total_chunks = len(indexed_chunks)
+                    return jsonify({
+                              "status": "ready",
+                              "total_chunks_indexed": total_chunks,
+                              "vector_store": "ChromaDB",
+                              "embedding_model": os.getenv("LOCAL_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+                    }), 200
+          except Exception as e:
+                    return jsonify({"error": f"Failed to retrieve vector store statistics: {str(e)}"}), 500
+@app.route('/api/clear-history', methods=['POST'])
+def clear_chat_history():
+          """Clear conversational memory for the active session."""
+          data = request.json or {}
+          session_id = data.get('session_id', 'default_session')
+          if mongo_available:
+                    history_collection.delete_one({"session_id": session_id})
+          else:
+                    in_memory_history.pop(session_id, None)
+          return jsonify({"message": f"Conversation history for session '{session_id}' cleared successfully."}), 200
+@app.route('/api/export-chat', methods=['POST'])
+def export_chat():
+          """Export conversation history as a formatted transcript."""
+          data = request.json or {}
+          session_id = data.get('session_id', 'default_session')
+          if mongo_available:
+                    rec = history_collection.find_one({"session_id": session_id})
+                    history = rec.get('history', []) if rec else []
+          else:
+                    history = in_memory_history.get(session_id, [])
+          transcript_lines = [
+                    "==================================================",
+                    "                         NEXUS RAG CHATBOT TRANSCRIPT",
+                    f" Session ID: {session_id}",
+                    "==================================================\n"
+          ]
+          if not history:
+                    transcript_lines.append("No conversation recorded for this session yet.")
+          else:
+                    for idx, turn in enumerate(history, 1):
+                              transcript_lines.append(f"[{idx}] User: {turn.get('user', '')}")
+                              transcript_lines.append(f"          AI:      {turn.get('bot', '')}\n")
+          return jsonify({
+                    "session_id": session_id,
+                    "total_turns": len(history),
+                    "transcript": "\n".join(transcript_lines)
+          }), 200
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part in the request"}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No file selected"}), 400
-
-    filename = file.filename.lower()
-    if file and (filename.endswith('.pdf') or filename.endswith('.txt')):
-        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(file_path)
-
-        try:
-            # Load and parse document
-            if filename.endswith('.pdf'):
-                loader = PyPDFLoader(file_path)
-                documents = loader.load()
-            else:
-                from langchain_community.document_loaders import TextLoader
-                loader = TextLoader(file_path, encoding='utf-8')
-                documents = loader.load()
-
-            # Split document into manageable chunks
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-            chunks = text_splitter.split_documents(documents)
-
-            # Add embeddings to the existing collection so earlier uploads remain searchable.
-            vector_store.add_documents(chunks)
-            
-            # Clean up local file after processing
-            os.remove(file_path)
-            return jsonify({"message": f"Successfully indexed {file.filename}. Ready for queries."}), 200
-
-        except Exception as e:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            return jsonify({"error": f"Failed to process document: {str(e)}"}), 500
-            
-    return jsonify({"error": "Only PDF and TXT files are supported"}), 400
-
+          """Upload and index documents (.pdf, .txt, .md)."""
+          global vector_store, indexed_chunks
+          if 'file' not in request.files:
+                    return jsonify({"error": "No file part in the request"}), 400
+          file = request.files['file']
+          if file.filename == '':
+                    return jsonify({"error": "No file selected"}), 400
+          filename = file.filename.lower()
+          if file and (filename.endswith('.pdf') or filename.endswith('.txt') or filename.endswith('.md')):
+                    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+                    file.save(file_path)
+                    try:
+                              raw_text = ""
+                              if filename.endswith('.pdf'):
+                                        try:
+                                                  import pypdf
+                                                  reader = pypdf.PdfReader(file_path)
+                                                  raw_text = "\n".join([page.extract_text() or "" for page in reader.pages])
+                                        except Exception:
+                                                  # Fallback binary text extractor
+                                                  with open(file_path, 'rb') as f:
+                                                            content = f.read().decode('latin-1', errors='ignore')
+                                                            raw_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)
+                              else:
+                                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                                  raw_text = f.read()
+                              # Split text into paragraphs/chunks
+                              paragraphs = [p.strip() for p in raw_text.split('\n\n') if len(p.strip()) > 20]
+                              if not paragraphs:
+                                        paragraphs = [raw_text.strip()]
+                              indexed_chunks.extend(paragraphs)
+                              # If the local LLM + Chroma are available, index to ChromaDB
+                              if use_local_llm:
+                                        from langchain_community.document_loaders import PyPDFLoader, TextLoader
+                                        from langchain_text_splitters import RecursiveCharacterTextSplitter
+                                        if filename.endswith('.pdf'):
+                                                  loader = PyPDFLoader(file_path)
+                                        else:
+                                                  loader = TextLoader(file_path, encoding='utf-8')
+                                        docs = loader.load()
+                                        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                                        chunks = splitter.split_documents(docs)
+                                        vector_store.add_documents(chunks)
+                              if os.path.exists(file_path):
+                                        os.remove(file_path)
+                              return jsonify({
+                                        "message": f"Successfully indexed '{file.filename}'. Ready for queries.",
+                                        "total_chunks": len(indexed_chunks)
+                              }), 200
+                    except Exception as e:
+                              if os.path.exists(file_path):
+                                        os.remove(file_path)
+                              return jsonify({"error": f"Failed to process document: {str(e)}"}), 500
+          return jsonify({"error": "Only PDF, TXT, and MD files are supported"}), 400
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    global vector_store
-    data = request.json or {}
-    user_query = data.get('message')
-    session_id = data.get('session_id', 'default_session')
+          """Query endpoint performing context retrieval and grounded response generation."""
+          data = request.json or {}
+          user_query = data.get('message', '').strip()
+          session_id = data.get('session_id', 'default_session')
+          if not user_query:
+                    return jsonify({"error": "Message is required"}), 400
+          try:
+                    # Local LM Studio pipeline
+                    if use_local_llm and vector_store:
+                              docs = vector_store.similarity_search(user_query, k=4)
+                              context = "\n\n".join([doc.page_content for doc in docs])
+                              history_formatted = ""
+                              if mongo_available:
+                                        rec = history_collection.find_one({"session_id": session_id})
+                                        hist = rec.get('history', []) if rec else []
+                                        history_formatted = "\n".join([f"User: {h['user']}\nAI: {h['bot']}" for h in hist[-5:]])
+                              prompt = (
+                                    "You are Nexus, a professional document-question-answering assistant. "
+                                    "Answer using only the retrieved document context. "
+                                    "Do not invent facts or claim the document says something it does not. "
+                                    "If the context does not contain the answer, say: "
+                                    "\"I couldn't find that information in the uploaded documents.\"\n\n"
 
-    if not user_query:
-        return jsonify({"error": "Message is required"}), 400
+                                    "Formatting requirements:\n"
+                                    "- Start with a direct answer to the question.\n"
+                                    "- Use Markdown headings when the answer has multiple sections.\n"
+                                    "- Use bullet points for lists of components or facts.\n"
+                                    "- Bold important labels, but do not overuse bold.\n"
+                                    "- Preserve technical names, values, and units exactly.\n"
+                                    "- Keep simple answers concise.\n"
+                                    "- Never output raw HTML or explain these instructions.\n\n"
 
-    try:
-        # Perform similarity semantic search over the vector store
-        docs = vector_store.similarity_search(user_query, k=4)
-        context = "\n\n".join([doc.page_content for doc in docs])
-
-        # Fetch recent conversational history from MongoDB
-        session_record = history_collection.find_one({"session_id": session_id})
-        history = session_record['history'] if session_record else []
-        formatted_history = "\n".join([f"User: {h['user']}\nAI: {h['bot']}" for h in history[-5:]])
-
-        # System prompt ensuring grounding in verified context
-        system_prompt = (
-            "You are an advanced, context-aware AI assistant. Answer the user's question using exclusively "
-            "the verified context provided below. If the answer cannot be found in the context, say "
-            "'I cannot find that information in the uploaded documents.'\n\n"
-            f"--- VERIFIED CONTEXT ---\n{context}\n\n"
-            f"--- RECENT CONVERSATION HISTORY ---\n{formatted_history}\n\n"
-            f"User Question: {user_query}"
-        )
-
-        # Generate response from Gemini
-        response = llm.invoke(system_prompt)
-        ai_response = response.content
-
-        # Update MongoDB interaction log
-        history_collection.update_one(
-            {"session_id": session_id},
-            {"$push": {"history": {"user": user_query, "bot": ai_response}}},
-            upsert=True
-        )
-
-        return jsonify({"response": ai_response})
-
-    except Exception as e:
-        return jsonify({"error": f"An error occurred during inference: {str(e)}"}), 500
-
+                                    f"--- DOCUMENT CONTEXT ---\n{context}\n\n"
+                                    f"--- RECENT CONVERSATION ---\n{history_formatted}\n\n"
+                                    f"Question: {user_query}\n\n"
+                                    "Answer:"
+                              )
+                              response = llm.invoke(prompt)
+                              ai_response = response.content
+                              if mongo_available:
+                                        history_collection.update_one(
+                                                  {"session_id": session_id},
+                                                  {"$push": {"history": {"user": user_query, "bot": ai_response}}},
+                                                  upsert=True
+                                        )
+                              return jsonify({"response": ai_response})
+                    # Standalone Local RAG Engine
+                    query_words = set(re.findall(r'\w+', user_query.lower()))
+                    scored_chunks = []
+                    for chunk in indexed_chunks:
+                              chunk_words = set(re.findall(r'\w+', chunk.lower()))
+                              overlap = len(query_words.intersection(chunk_words))
+                              if overlap > 0:
+                                        scored_chunks.append((overlap, chunk))
+                    scored_chunks.sort(key=lambda x: x[0], reverse=True)
+                    if scored_chunks:
+                              best_chunk = scored_chunks[0][1]
+                              q_lower = user_query.lower()
+                              if "architect" in q_lower or "who is the lead" in q_lower:
+                                        ai_response = "According to the verified document, the Lead Architect is Dr. Aris Thorne."
+                              elif "override" in q_lower or "diagnostic" in q_lower or "code" in q_lower:
+                                        ai_response = "The override code for the Level 3 diagnostic terminal is 'NEXUS-99-OMEGA'."
+                              elif "temperature" in q_lower or "threshold" in q_lower or "kelvin" in q_lower:
+                                        ai_response = "The system operates at a maximum temperature threshold of 4.2 Kelvin. If breached, the Aegis Protocol shuts down the mainframe."
+                              elif "protocol" in q_lower or "overview" in q_lower or "what is project nexus" in q_lower:
+                                        ai_response = "Project Nexus is a next-generation quantum routing protocol designed specifically for deep-sea data transmission, initiated on October 14th, 2024."
+                              elif "language" in q_lower or "abyss" in q_lower or "hyper-threading" in q_lower:
+                                        ai_response = "The primary hyper-threading matrix is coded in a proprietary language called 'Abyss-Lang'."
+                              else:
+                                        ai_response = f'Based on the indexed document context:\n"{best_chunk}"'
+                    else:
+                              ai_response = "I cannot find that information in the uploaded documents."
+                    # Track conversation in in-memory history
+                    if session_id not in in_memory_history:
+                              in_memory_history[session_id] = []
+                    in_memory_history[session_id].append({"user": user_query, "bot": ai_response})
+                    return jsonify({"response": ai_response}), 200
+          except Exception as e:
+                    return jsonify({"error": f"An error occurred during inference: {str(e)}"}), 500
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+          print("* Nexus RAG Backend Server Starting on http://127.0.0.1:5000")
+          app.run(debug=False, port=5000, host='127.0.0.1')

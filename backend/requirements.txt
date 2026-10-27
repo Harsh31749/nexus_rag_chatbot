@@ -7,3 +7,7 @@ langchain-community
 langchain-google-genai
 chromadb
 python-dotenv
+langchain-openai
+langchain-huggingface
+sentence-transformers
+langchain-text-splitters
